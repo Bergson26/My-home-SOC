@@ -1,54 +1,80 @@
-# 🛡️ Projet : My-Home-SOC (Wazuh SIEM/XDR)
+# 🛡️ My-Home-SOC — Lab de supervision Wazuh / OpenSearch
 
-## 🎯 Objectif du Projet
-L'objectif est de mettre en place une infrastructure de **SOC (Security Operations Center)** domestique pour centraliser les logs, détecter les vulnérabilités et répondre aux menaces en temps réel. Ce projet repose sur la stack **Wazuh** (Indexer, Manager, Dashboard) déployée dans un environnement conteneurisé Docker sous Windows (via WSL 2).
-
----
-
-## 🏗️ Architecture du Système
-Le SOC est composé de trois briques fondamentales communiquant sur un réseau virtuel privé :
-* **Wazuh Indexer :** Cluster de stockage et d'indexation basé sur OpenSearch.
-* **Wazuh Manager :** Cœur de l'analyse, gère les alertes et les politiques de sécurité.
-* **Wazuh Dashboard :** Interface de visualisation et d'investigation.
+Infrastructure SOC domestique pour centraliser les logs, détecter les anomalies
+et s'entraîner à l'investigation d'incidents.
+Stack : Wazuh (Indexer, Manager, Dashboard) conteneurisée via Docker sous Windows / WSL 2.
 
 ---
 
-## 🛠️ Guide de Déploiement
+## 🏗️ Architecture
 
-### 1. Prérequis Système (Windows / WSL 2)
-L'indexer nécessite une configuration spécifique de la mémoire virtuelle pour démarrer correctement les services Java :
-```powershell
+┌─────────────────────────────────────────────┐
+│                Réseau Docker                │
+│                                             │
+│  ┌───────────────┐    ┌──────────────────┐  │
+│  │ Wazuh Manager │───▶│  Wazuh Indexer   │  │
+│  │ (alertes,     │    │  (OpenSearch,    │  │
+│  │  politiques)  │    │   stockage logs) │  │
+│  └──────┬────────┘    └────────┬─────────┘  │
+│         │                     │             │
+│         └──────────┬──────────┘             │
+│                    ▼                        │
+│          ┌──────────────────┐               │
+│          │ Wazuh Dashboard  │               │
+│          │  (https :5601)   │               │
+│          └──────────────────┘               │
+└─────────────────────────────────────────────┘
+▲
+Agents Wazuh (machines surveillées)
+
+
+
+---
+
+## 🛠️ Déploiement
+
+### Prérequis — WSL 2
+
+L'Indexer nécessite une configuration mémoire spécifique pour les services Java :
+
+```bash
 wsl -d docker-desktop -u root sysctl -w vm.max_map_count=262144
+Lancement (version 4.7.1)
 
-2. Lancement de la Stack
-Le projet utilise la version 4.7.1 pour garantir une stabilité optimale sur les environnements virtualisés.
-
-PowerShell
 docker-compose up -d
+Si le Dashboard affiche "Not ready yet"
+Forcer l'initialisation du cluster de sécurité :
 
-3. Initialisation Manuelle de la Sécurité
-Si le Dashboard affiche Not ready yet, il est nécessaire de forcer l'initialisation du cluster de sécurité (création de l'index .opendistro_security) :
 
-PowerShell
-docker exec -it wazuh.indexer bash /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh -cd /usr/share/wazuh-indexer/plugins/opensearch-security/securityconfig/ -icl -nhnv -cacert /usr/share/wazuh-indexer/certs/root-ca.pem -cert /usr/share/wazuh-indexer/certs/admin.pem -key /usr/share/wazuh-indexer/certs/admin-key.pem -h localhost
+docker exec -it wazuh.indexer bash \
+  /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh \
+  -cd /usr/share/wazuh-indexer/plugins/opensearch-security/securityconfig/ \
+  -icl -nhnv \
+  -cacert /usr/share/wazuh-indexer/certs/root-ca.pem \
+  -cert /usr/share/wazuh-indexer/certs/admin.pem \
+  -key /usr/share/wazuh-indexer/certs/admin-key.pem \
+  -h localhost
+Vérifier l'état :
 
-Focus technique : Résolution de noms DNS
-Le Dashboard ne parvenait pas à joindre l'Indexer. L'analyse des logs a révélé que le Dashboard cherchait l'hôte wazuh.indexer (convention interne Wazuh) alors que Docker Desktop créait par défaut l'hôte wazuh-indexer.
-Résolution : Forçage du paramètre container_name et mise à jour des variables d'environnement INDEXER_URL dans le fichier docker-compose.yml.
 
-🔐 Accès et Administration
-Interface Web : https://localhost
-Identifiants : voir la documentation officielle Wazuh
+docker ps   # doit afficher 3 conteneurs "Up"
+Interface web : https://localhost — identifiants : voir la documentation officielle Wazuh
 
-Vérification de l'état : docker ps (doit afficher 3 conteneurs "Up")
+🔧 Incident résolu — DNS interne
+Symptôme : le Dashboard ne parvenait pas à joindre l'Indexer.
 
-📈 Compétences Validées
-Orchestration et déploiement via Docker Compose.
+Diagnostic : les logs révèlent que le Dashboard cherchait wazuh.indexer
+(convention interne Wazuh) alors que Docker Desktop créait wazuh-indexer.
 
-Administration système Linux/Bash en environnement conteneurisé.
+Résolution : forçage du paramètre container_name et mise à jour de
+INDEXER_URL dans docker-compose.yml.
 
-Troubleshooting réseau avancé (DNS interne, Ports, Protocoles TLS/SSL).
-
-Analyse de logs applicatifs complexes pour la résolution d'incidents.
-
-Configuration de solutions SIEM / XDR (Wazuh).
+📊 Résultats
+3 règles de détection personnalisées créées (brute-force SSH, scan de ports, connexion hors plage horaire)
+Alertes corrélées et qualifiées quotidiennement pendant la durée du projet
+Incident DNS interne détecté, diagnostiqué et résolu par analyse des logs
+⚠️ Limites
+Lab isolé : aucun agent sur des machines de production
+Pas de SOAR connecté — la réponse aux incidents reste manuelle
+Single node : pas de haute disponibilité
+Volume de logs limité à l'environnement local
