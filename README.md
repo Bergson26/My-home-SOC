@@ -38,8 +38,7 @@ Résolution : Forçage du paramètre container_name et mise à jour des variable
 
 🔐 Accès et Administration
 Interface Web : https://localhost
-
-Identifiants par défaut : admin / SecretPassword123!
+Identifiants : voir la documentation officielle Wazuh
 
 Vérification de l'état : docker ps (doit afficher 3 conteneurs "Up")
 
